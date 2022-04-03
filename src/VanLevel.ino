@@ -2,13 +2,15 @@
 *******************************************************************************
   Copyright (c) 2021 by Marko Langer
   Programm Name: VanLevel
-  Version: 1.0
+  Version: 1.01
   Date：29.03.2022
   Author: Marko Langer
+  
+  Update 03.04.2022
+  - Preset Radiobuttons in WebInterface
+  - Charging Status with USB+in
 *******************************************************************************
 */
-
-
 #include <WiFi.h>
 #include <EEPROM.h>
 #include "M5StickCPlus.h"
@@ -66,6 +68,13 @@ bool x3;
 float x4;
 unsigned long previousMillis = 0;
 unsigned long currentMillis = millis();
+String checked1 = "";
+String checked2 = "";
+String checked3 = "";
+String checked4 = "";
+String checked5 = "";
+String checked6 = "";
+String checked7 = "";
 
 
 IPAddress apIP(9, 9, 9, 9);
@@ -101,6 +110,46 @@ void setup() {
     limit_4 = EEPROM.read(8);
     limit_5 = EEPROM.read(9);
     Calibrate = EEPROM.read(10);
+    //Sound
+    if (Sound == 1) {
+      checked1 = "checked";
+      checked2 = "";
+    }
+    else if (Sound == 0) {
+      checked1 = "";
+      checked2 = "checked";
+    }
+
+    // Display
+    if (Display == 3) {
+      checked3 = "checked";
+      checked4 = "";
+    }
+    else if (Display == 1) {
+      checked3 = "";
+      checked4 = "checked";
+    }
+
+    // Standby
+    if (Standby == 15)
+    {
+      checked5 = "checked" ;
+      checked6 = "";
+      checked7 = "";
+    }
+    else if (Standby == 10)
+    {
+      checked5 = "" ;
+      checked6 = "checked";
+      checked7 = "";
+    }
+    else if (Standby == 5)
+    {
+      checked5 = "" ;
+      checked6 = "";
+      checked7 = "checked";
+    }
+
     //OffsetPitch
     x4 = ((EEPROM.read(12) * 100) + EEPROM.read(13));
     x4 = x4 / 100;
@@ -213,15 +262,15 @@ void menu1() {
   //Background
   double batteryLevel = 100.0 * (((M5.Axp.GetVapsData() * 1.4 / 1000) - 3.0) / (4.078 - 3.0));  // calculate percentage until brown out @3,7V in %
   if (batteryLevel > 100.0) batteryLevel = 100;                                 // if result is bigger than 100% = status charging.
-  if (batteryLevel >= 50.0) {
+  if (batteryLevel >= 50.0 && M5.Axp.GetVBusVoltage() <= 4.7 ) {
     tftSprite.fillRect(30, 90, 30, 12, GREENDOT);
     tftSprite.fillRect(60, 93, 3, 6, GREENDOT);
   }
-  if (batteryLevel < 50.0) {
+  if (batteryLevel < 50.0 && M5.Axp.GetVBusVoltage() <= 4.7 ) {
     tftSprite.fillRect(30, 90, 30, 12, YELLOWLINE);
     tftSprite.fillRect(60, 93, 3, 6, YELLOWLINE);
   }
-  if (batteryLevel < 30.0)                                                      // if result is under 20% = send out Warning.
+  if (batteryLevel < 30.0 && M5.Axp.GetVBusVoltage() <= 4.7 )                                                      // if result is under 20% = send out Warning.
   {
     tftSprite.fillRect(30, 90, 30, 12, RED);
     tftSprite.fillRect(60, 93, 3, 6, RED);
@@ -229,8 +278,19 @@ void menu1() {
     tftSprite.setTextColor(RED, BCKGRDCOL);
     tftSprite.printf("Batt.\n LOW!");
     tftSprite.setTextColor(GREEN, BCKGRDCOL);
-    if (batteryLevel < 20.0) M5.Axp.PowerOff();
+    if (batteryLevel < 20.0 && M5.Axp.GetVBusVoltage() <= 4.7) M5.Axp.PowerOff();
   }
+  if (M5.Axp.GetVBusVoltage() >= 4.7 && M5.Axp.GetBatVoltage() >= 4.1) {
+    tftSprite.fillRect(30, 90, 30, 12, GREENDOT);
+    tftSprite.fillRect(60, 93, 3, 6, GREENDOT);
+  }
+  else if (M5.Axp.GetVBusVoltage() >= 4.7) {
+    tftSprite.fillRect(60, 93, 3, 6, GREENDOT);
+    tftSprite.fillRect(30, 90, 30, 12, TEXTCOL);
+  }
+
+
+
 
   tftSprite.setCursor(10, 10);
   tftSprite.printf("VanLevel");
@@ -356,7 +416,7 @@ void Config() {
       //      Serial.println("");       Serial.print("countValues: "); Serial.println(countValues);
       menu = menu + 1;
     }
-    String HTMLPageWithConfigForm = EncodeFormHTMLFromConfigValues(); //"ESP32 Webserver Demo", 3);   // build a new webpage with form and new ConfigValues entered in textboxes
+    String HTMLPageWithConfigForm = EncodeFormHTMLFromConfigValues(checked1, checked2, checked3, checked4, checked5, checked6, checked7); //"ESP32 Webserver Demo", 3);   // build a new webpage with form and new ConfigValues entered in textboxes
     Webserver_SendHTMLPage(HTMLPageWithConfigForm);    // send out the webpage to client = webbrowser and close client connection
   }
 }
@@ -556,7 +616,7 @@ int DecodeGETParameterAndSetConfigValues(String GETParameter)
 
 
 
-String EncodeFormHTMLFromConfigValues()//String TitleOfForm, int CountOfConfigValues)
+String EncodeFormHTMLFromConfigValues(String checked1, String checked2, String checked3, String checked4, String checked5, String checked6, String checked7) //String TitleOfForm, int CountOfConfigValues)
 {
   String HTMLPage = " <!DOCTYPE html> <html><meta name = 'viewport' content = 'width=device-width, initial-scale=1.0, user-scalable=no'><body>";                   // " + TitleOfForm + "</h2><form><table>";
   HTMLPage += "<form><table style=' border-collapse: collapse; font-family:Helvetica; color: DimGray; border-style: hidden; margin-left: auto; margin-right: auto; float: center;' border='0'>";
@@ -566,8 +626,8 @@ String EncodeFormHTMLFromConfigValues()//String TitleOfForm, int CountOfConfigVa
   HTMLPage += "Configurate your VanLevel / Konfiguiere dein VanLevel</i></td>";
   HTMLPage += "</tr> <tr> <td style='text-align: right; vertical-align: top; width: 150px; border-bottom: 1px dotted #999;' colspan='3'>&nbsp;</td></tr> <tr> <td style='text-align: right; vertical-align: top; width: 150px;' colspan='3'>&nbsp;</td> </tr> <tr> <td style='text-align: center; vertical-align: middle; width: 150px;' rowspan='3'><b>";
   HTMLPage += "System</b></td>";
-  HTMLPage += "<td style='text-align: right; vertical-align: middle; width: 150px;'>Alarm&nbsp;</td> <td style='text-align: left; vertical-align: top; width: 150px;'><input type='radio' name='Sound' value='1'  checked > on / an<br><input type = 'radio' name = 'Sound' value = '0'> off / aus&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: middle; width: 150px;'>Display&nbsp;</td> <td style = 'text-align: left; vertical-align: top; width: 150px;'> <input type = 'radio' name = 'Display' value = '3' checked> Normal<br><input type = 'radio' name = 'Display' value = '1'> 180 &deg; </td > </tr > <tr> ";
-  HTMLPage += "<td style = 'text-align: right; vertical-align: middle; width: 150px;'>Standby&nbsp;</td > <td style = 'text-align: left; vertical-align: top; width: 150px;'><input type = 'radio' name = 'Standby' value = '15' checked> 15 min<br><input type = 'radio' name = 'Standby' value = '10'> 10 min<br><input type = 'radio' name = 'Standby' value = '10'> &nbsp; 5 min&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px; border-bottom: 1px dotted #999;' colspan = '3'>&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px;' colspan = '3'>&nbsp;</td > </tr > <tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;' rowspan = '2'><b>Vehicle<br>Fahrzeug </b > </td > <td style = 'text-align: right; vertical-align: top; width: 150px;'>Wheelbase&nbsp;<br>Radstand&nbsp;</td> <td style = 'text-align: left; vertical-align: middle; width: 150px;'> <input style = 'border:1px solid; border-radius: 5px; text-align: center;' id = 'Radstand' max = '999' min = '100' name = 'Radstand' step = '10' type = 'number' value = '";
+  HTMLPage += "<td style='text-align: right; vertical-align: middle; width: 150px;'>Alarm&nbsp;</td> <td style='text-align: left; vertical-align: top; width: 150px;'><input type='radio' name='Sound' value='1'  " + checked1 + " > on / an<br><input type = 'radio' name = 'Sound' value = '0' " + checked1 + "> off / aus&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: middle; width: 150px;'>Display&nbsp;</td> <td style = 'text-align: left; vertical-align: top; width: 150px;'> <input type = 'radio' name = 'Display' value = '3' " + checked3 + "> Normal<br><input type = 'radio' name = 'Display' value = '1' " + checked4 + "> 180&deg; </td > </tr > <tr> ";
+  HTMLPage += "<td style = 'text-align: right; vertical-align: middle; width: 150px;'>Standby&nbsp;</td > <td style = 'text-align: left; vertical-align: top; width: 150px;'><input type = 'radio' name = 'Standby' value = '15' " + checked5 + "> 15 min<br><input type = 'radio' name = 'Standby' value = '10' " + checked6 + "> 10 min<br><input type = 'radio' name = 'Standby' value = '5' " + checked7 + "> &nbsp; 5 min&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px; border-bottom: 1px dotted #999;' colspan = '3'>&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px;' colspan = '3'>&nbsp;</td > </tr > <tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;' rowspan = '2'><b>Vehicle<br>Fahrzeug </b > </td > <td style = 'text-align: right; vertical-align: top; width: 150px;'>Wheelbase&nbsp;<br>Radstand&nbsp;</td> <td style = 'text-align: left; vertical-align: middle; width: 150px;'> <input style = 'border:1px solid; border-radius: 5px; text-align: center;' id = 'Radstand' max = '999' min = '100' name = 'Radstand' step = '10' type = 'number' value = '";
   HTMLPage += Radstand;
   HTMLPage += "'/>  &nbsp;cm </td> ";
   HTMLPage += " </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px;'>Track width&nbsp;<br>Spurbreite&nbsp;</td> <td style = 'text-align: left; vertical-align: middle; width: 150px;'> <input style = 'border:1px solid; border-radius: 5px; text-align: center;' id = 'Spurbreite' max = '999' min = '100' name = 'Spurbreite' step = '10' type = 'number' value = '";
@@ -590,7 +650,7 @@ String EncodeFormHTMLFromConfigValues()//String TitleOfForm, int CountOfConfigVa
   HTMLPage += limit_5;
   HTMLPage += "'/> &nbsp; cm </td> ";
   HTMLPage += " </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px; border-bottom: 1px dotted #999;' colspan = '3'>&nbsp;</td> </tr>  <tr> <td style = 'text-align: right; vertical-align: top; width: 150px;' colspan = '3'>&nbsp;</td> </tr> <tr> <td style = 'text-align: center; vertical-align: center; width: 150px;' colspan = '3'><!--<input type = 'submit' name = 'button' style = 'border:1px solid green; color: green; border-radius: 5px;'value = 'Update'>--><button type='submit' name = 'button' value = '1' style = 'border:1px solid green; color: green; border-radius: 5px;'>Update</button> </td> </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px; border-bottom: 1px dotted #999;' colspan = '3'>&nbsp; </td> </tr> <tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;'>&nbsp; </td> <td style = 'text-align: right; vertical-align: top; width: 150px;'>&nbsp; </td> <td style = 'text-align: left; vertical-align: top; width: 150px;'>&nbsp; </td> </tr> ";
-  HTMLPage += "<tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;' colspan = '3'><b>Calibrate System </b> <br> please make shure the VanLevel is placed in the right position and your vehicle is in level. After start of this operation the actual level is set as new basis level. <br>&nbsp; </br> <b>System Kalibrieren </b> <br> Bitte beachte das dein Fahrzeug / Anh&auml;nger gerade steht. Baue VanLevel am vorgesehen Platz ein und starte die Kalibration. Nach der Kalibration ist die aktuelle Fahrzeugeinstellung die neue Referenz. <br> <br> </td> </tr> <tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;'>&nbsp; </td> <td style = 'text-align: center; vertical-align: top; width: 150px;'><!--<input type = 'submit' name = 'button' style = 'border:1px solid red; color: red; border-radius: 5px;' value = 'Calibrate / Kalibrieren'>--><button type='submit' name = 'button' value = '2' style = 'border:1px solid red; color: red; border-radius: 5px;'>Calibrate / Kalibrieren</button></form> </td> <td style = 'text-align: left; vertical-align: top; width: 150px;'>&nbsp; </td> </tr> ";
+  HTMLPage += "<tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;' colspan = '3'><b>Update and Calibrate System </b> <br> please make shure the VanLevel is placed in the right position and your vehicle is in level. After start of this operation the actual level is set as new basis level. <br>&nbsp; </br> <b>System Kalibrieren und neue Einstellungen &uuml;bernehmen</b> <br> Bitte beachte das dein Fahrzeug / Anh&auml;nger gerade steht. Baue VanLevel am vorgesehen Platz ein und starte die Kalibration. Nach der Kalibration ist die aktuelle Fahrzeugeinstellung die neue Referenz. <br> <br> </td> </tr> <tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;'>&nbsp; </td> <td style = 'text-align: center; vertical-align: top; width: 150px;'><!--<input type = 'submit' name = 'button' style = 'border:1px solid red; color: red; border-radius: 5px;' value = 'Calibrate / Kalibrieren'>--><button type='submit' name = 'button' value = '2' style = 'border:1px solid red; color: red; border-radius: 5px;'>Calibrate / Kalibrieren</button></form> </td> <td style = 'text-align: left; vertical-align: top; width: 150px;'>&nbsp; </td> </tr> ";
   HTMLPage += " </tbody> ";
   HTMLPage += " </table> </P> <P> </P>";
   HTMLPage += " </body> </html> ";
