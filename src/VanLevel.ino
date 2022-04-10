@@ -2,11 +2,17 @@
 *******************************************************************************
   Copyright (c) 2021 by Marko Langer
   Programm Name: VanLevel
-  Version: 1.01
+  Version: 1.03
   Date：29.03.2022
   Author: Marko Langer
-  
-  Update 03.04.2022
+
+   Update 10.04.2022
+  - LowPassFilter for IMU input
+  - BugFix on Webinterface
+  - Level 9 is adapted as maximum of level cross
+  - Initial EEPROM setting write.
+
+   Update 03.04.2022
   - Preset Radiobuttons in WebInterface
   - Charging Status with USB+in
 *******************************************************************************
@@ -53,15 +59,21 @@ short Display = 3;
 short Standby = 15;
 short i = 0;
 short I = 0;
-short T = 0;
 short Sound = 1;
 short Calibrate = 1; // 1 = no Calibration / 2 = Calibrate
-float OffsetPitch = - 1.283;
-float OffsetRoll = -14.2;
+float OffsetPitch = 0.53;
+float OffsetRoll = 0.03;
+float OffsetFactor = 5.9;
 float pitch = 0.0F;
 float roll  = 0.0F;
+float pitch1 = 0.0F;
+float roll1  = 0.0F;
 float yaw   = 0.0F;
 float pi = 3.1415926F;
+float lowPassFilter = 0.025; // depends to delay in loop and max frequency
+float lowPassGyroX = 0;
+float lowPassGyroY = 0;
+float lowPassGyroZ = 0;
 int x1;
 int x2;
 bool x3;
@@ -110,7 +122,28 @@ void setup() {
     limit_4 = EEPROM.read(8);
     limit_5 = EEPROM.read(9);
     Calibrate = EEPROM.read(10);
-    //Sound
+    if (Sound == 255 || Display == 255 || Standby == 255 || Radstand == 255 || Spurweite == 255 || limit_1 == 255 || limit_2 == 255 || limit_3 == 255 || limit_4 == 255 || limit_5 == 255 || Calibrate == 255) {
+      EEPROM.write(0, 1);  // Sound
+      EEPROM.write(1, 3);  // Display
+      EEPROM.write(2, 15); // Standby
+      EEPROM.write(3, 38); // Radstand
+      EEPROM.write(4, 18); // Spurweite
+      EEPROM.write(5, 4);  // limit_1
+      EEPROM.write(6, 8);  // limit_2
+      EEPROM.write(7, 16); // limit_3
+      EEPROM.write(8, 19); // limit_4
+      EEPROM.write(9, 2);  // limit_5
+      EEPROM.write(10, 0); // Calibrate
+      EEPROM.write(11, 0); 
+      EEPROM.write(12, 0); 
+      EEPROM.write(13, 0); 
+      EEPROM.write(14, 0); 
+      EEPROM.write(15, 0);
+      EEPROM.write(16, 0);
+      EEPROM.write(17, 0);
+      EEPROM.commit();
+    }
+    // Sound ////////////////////
     if (Sound == 1) {
       checked1 = "checked";
       checked2 = "";
@@ -119,8 +152,7 @@ void setup() {
       checked1 = "";
       checked2 = "checked";
     }
-
-    // Display
+    // Display ////////////////////
     if (Display == 3) {
       checked3 = "checked";
       checked4 = "";
@@ -129,8 +161,7 @@ void setup() {
       checked3 = "";
       checked4 = "checked";
     }
-
-    // Standby
+    // Standby ////////////////////
     if (Standby == 15)
     {
       checked5 = "checked" ;
@@ -149,37 +180,33 @@ void setup() {
       checked6 = "";
       checked7 = "checked";
     }
-
-    //OffsetPitch
+    // OffsetPitch ////////////////////
     x4 = ((EEPROM.read(12) * 100) + EEPROM.read(13));
     x4 = x4 / 100;
     if (EEPROM.read(11) == 0) x4 = x4 * -1;
-    OffsetPitch = x4;// - 1.373;
+    OffsetPitch = x4;
     //OffsetRoll
     x4 = ((EEPROM.read(15) * 100) + EEPROM.read(16));
     x4 = x4 / 100;
     if (EEPROM.read(14) == 0) x4 = x4 * -1;
-    OffsetRoll = x4;// - 6.37;
+    OffsetRoll = x4;
     if (Calibrate == 2) menu = 7;
     EEPROM.write(10, 1);
     EEPROM.commit();
   }
-  // Init GPIO
+  // Init GPIO ////////////////////
   pinMode(M5_BUTTON_HOME, INPUT_PULLUP);
   pinMode(10, OUTPUT);
-
-  // Init Display
+  // Init Display ////////////////////
   M5.Axp.ScreenBreath(10);
   digitalWrite(10, 1);                // turn the LED off
   M5.Beep.tone(4000);
   delay(100);
   M5.Beep.mute();
-
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(TEXTCOL, BCKGRDCOL);
   M5.Lcd.setRotation(Display);
-
-
+  // BootScreen ////////////////////
   tftSprite.setCursor(25, 50);
   tftSprite.setTextSize(4);
   tftSprite.print("VanLevel");
@@ -187,15 +214,13 @@ void setup() {
   tftSprite.setTextSize(2);
   tftSprite.pushSprite(0, 0);
   delay(1500);
-
 }
 
 void loop() {
   tftSprite.fillRect(0, 0, 240, 135, BCKGRDCOL);
   M5.update();
   BtnCheck();
-
-  if (((millis() / 1000) / 60) >= Standby) menu = 4;
+  if (((millis() / 1000) / 60) >= Standby) menu = 4; //Go to standby when time equals to Standby
 
   switch (menu) {
     case 1:
@@ -204,7 +229,7 @@ void loop() {
       break;
     case 2:
       calculation();
-      if (Sound == 1)
+      if (Sound == 1) // jump to next menue when Sound is off
       {
         sound();
       }
@@ -234,21 +259,25 @@ void loop() {
 }
 
 
-// Berechnung Ball
+// Berechnung Ball ////////////////////
 void ball() {
-  M5.IMU.getAhrsData(&pitch, &roll, &yaw);
-  M5.IMU.getAhrsData(&pitch, &roll, &yaw); //Hier weiter machen - dreiecksberechnung aus winkel.
+  M5.Imu.getAccelData(&pitch, &roll, &yaw);
+  lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
+  lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
+  pitch = lowPassGyroX * -10;
+  roll = lowPassGyroY * 10;
+
   hoeheX = round(Radstand * tan((pitch + OffsetPitch) * pi / 180));
   hoeheY = round(Spurweite * tan((roll + OffsetRoll) * pi / 180));
   if (Display == 1) {
     hoeheX = hoeheX * -1;
     hoeheY = hoeheY * -1;
-    BallX = map(hoeheX, -19.0, 19.0, 135, 0);
-    BallY = map(hoeheY, -19.0, 19.0, 110, 230);
+    BallX = map(hoeheX, limit_5 * -1, limit_5, 135, 0);
+    BallY = map(hoeheY, limit_5 * -1, limit_5, 110, 230);
   }
   else {
-    BallX = map(hoeheX, -19.0, 19.0, 135, 0);
-    BallY = map(hoeheY, -19.0, 19.0, 110, 230);
+    BallX = map(hoeheX, limit_5 * -1, limit_5, 135, 0);
+    BallY = map(hoeheY, limit_5 * -1, limit_5, 110, 230);
   }
   if (BallX <= 0)   BallX =   7;
   if (BallX >= 135) BallX = 125;
@@ -257,7 +286,7 @@ void ball() {
 }
 
 
-// Fadenkreuz
+// Fadenkreuz ////////////////////
 void menu1() {
   //Background
   double batteryLevel = 100.0 * (((M5.Axp.GetVapsData() * 1.4 / 1000) - 3.0) / (4.078 - 3.0));  // calculate percentage until brown out @3,7V in %
@@ -270,7 +299,7 @@ void menu1() {
     tftSprite.fillRect(30, 90, 30, 12, YELLOWLINE);
     tftSprite.fillRect(60, 93, 3, 6, YELLOWLINE);
   }
-  if (batteryLevel < 30.0 && M5.Axp.GetVBusVoltage() <= 4.7 )                                                      // if result is under 20% = send out Warning.
+  if (batteryLevel < 30.0 && M5.Axp.GetVBusVoltage() <= 4.7 )   // if result is under 20% = send out Warning.
   {
     tftSprite.fillRect(30, 90, 30, 12, RED);
     tftSprite.fillRect(60, 93, 3, 6, RED);
@@ -288,10 +317,6 @@ void menu1() {
     tftSprite.fillRect(60, 93, 3, 6, GREENDOT);
     tftSprite.fillRect(30, 90, 30, 12, TEXTCOL);
   }
-
-
-
-
   tftSprite.setCursor(10, 10);
   tftSprite.printf("VanLevel");
   tftSprite.drawRect(120, 17, 100, 100, PINKLINE);
@@ -299,46 +324,66 @@ void menu1() {
   tftSprite.drawRect(140, 37, 60, 60, YELLOWLINE);
   tftSprite.drawRect(150, 47, 40, 40, BLUELINE);
   tftSprite.drawRect(160, 57, 20, 20, GREENLINE);
-  //Cross
+  //Cross ////////////////////
   tftSprite.drawFastHLine(110, 67, 120, TEXTCOL);
   tftSprite.drawFastVLine(170, 7, 120, TEXTCOL);
-  //Ball
+  //Ball ////////////////////
   tftSprite.drawCircle(BallY, BallX, 6, WHITE);
   tftSprite.fillCircle(BallY, BallX, 5, GREENDOT);
-
-  //  }
 }
 
-
-void CAL() {
+// Calibration Mode ////////////////////
+void CAL() {        //4 Runs / 300 times each. TO get a stable base.
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere ");
+  tftSprite.pushSprite(0, 0);
   do {
-    M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+    M5.Imu.getAccelData(&pitch, &roll, &yaw);
+    lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
+    lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
+    pitch = lowPassGyroX * -10;
+    roll = lowPassGyroY * -10;
     I++;
   } while (I < 300);
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere\n\n         3");
+  tftSprite.pushSprite(0, 0);
   I = 0;
   do {
-    M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+    M5.Imu.getAccelData(&pitch, &roll, &yaw);
+    lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
+    lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
+    pitch = lowPassGyroX * -10;
+    roll = lowPassGyroY * -10;
     I++;
   } while (I < 300);
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere\n\n         2");
+  tftSprite.pushSprite(0, 0);
   delay(1000);
-  M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+  M5.Imu.getAccelData(&pitch, &roll, &yaw);
+  lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
+  lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
+  pitch = lowPassGyroX * -10;
+  roll = lowPassGyroY * -10;
+  // last run ////////////////////
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere\n\n         1");
+  tftSprite.pushSprite(0, 0);
   delay(1000);
-  M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+  M5.Imu.getAccelData(&pitch, &roll, &yaw);
+  lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
+  lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
+  pitch = lowPassGyroX * -10;
+  roll = lowPassGyroY * -10;
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere\n\n         0");
+  tftSprite.pushSprite(0, 0);
   M5.Beep.tone(8000);
   delay(1000);
   M5.Beep.mute();
-
-  //PITCH
+  // Save to EEPROM ////////////////////
+  // PITCH ////////////////////
   if (pitch <= 0) {
     x3 = 1;
     pitch = pitch * -1;
@@ -353,10 +398,8 @@ void CAL() {
   EEPROM.write(13, x2);
   EEPROM.commit();
   delay(10);
-  OffsetPitch = x4;// - 1.373;
-
-
-  //ROLL
+  OffsetPitch = x4;
+  // ROLL ////////////////////
   if (roll <= 0) {
     x3 = 1;
     roll = roll * -1;
@@ -371,7 +414,7 @@ void CAL() {
   EEPROM.write(16, x2);
   EEPROM.commit();
   delay(10);
-  OffsetRoll = x4;// - 16.37;
+  OffsetRoll = x4;
   menu = 1;
   menuChange();
   ESP.restart();
@@ -404,7 +447,9 @@ void Config() {
   tftSprite.setCursor(10, 10);
   tftSprite.print("Setup");
   tftSprite.setCursor(0, 40);
-  tftSprite.printf(" WIFI-Name:\n Setup_VanLevel\n\n IP: 9.9.9.9");
+  tftSprite.printf(" WIFI-Name:\n Setup_VanLevel\n\n Address:\n http://9.9.9.9/");
+
+
   // Init WiFi
   Webserver_Start();
   String GETParameter = Webserver_GetRequestGETParameter();
@@ -413,7 +458,7 @@ void Config() {
     if (GETParameter.length() > 1)      // request contains some GET parameter
     {
       int countValues = DecodeGETParameterAndSetConfigValues(GETParameter);     // decode the GET parameter and set ConfigValues
-      //      Serial.println("");       Serial.print("countValues: "); Serial.println(countValues);
+
       menu = menu + 1;
     }
     String HTMLPageWithConfigForm = EncodeFormHTMLFromConfigValues(checked1, checked2, checked3, checked4, checked5, checked6, checked7); //"ESP32 Webserver Demo", 3);   // build a new webpage with form and new ConfigValues entered in textboxes
@@ -425,9 +470,18 @@ void Config() {
 void calculation() {
   tftSprite.setCursor(10, 10);
   tftSprite.print("Level & Ramp Step");
-  M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+  M5.Imu.getAccelData(&pitch, &roll, &yaw);
+  lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
+  lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
+  pitch = lowPassGyroX * -10;
+  roll = lowPassGyroY * -10;
+
+
   hoeheX = round(Radstand * tan((pitch + OffsetPitch) * pi / 180));
   hoeheY = round(Spurweite * tan((roll + OffsetRoll) * pi / 180));
+
+
+
   if (Display == 1) {
     hoeheX = hoeheX * -1;
     hoeheY = hoeheY * -1;
@@ -497,7 +551,7 @@ void calculation() {
     i = 0;
   }
   tftSprite.setCursor(0, 40);
-  tftSprite.printf(" %03dcm        %03dcm\n   %01d            %01d\n                   \n   %01d            %01d\n %03dcm        %03dcm", hoeheHL, hoeheHR, limitHL, limitHR, limitVL, limitVR, hoeheVL, hoeheVR);
+  tftSprite.printf(" %03dcm        %03dcm\n   %01d            %01d\n                   \n   %01d            %01d\n %03dcm        %03dcm", hoeheHR, hoeheHL, limitHR, limitHL, limitVR, limitVL, hoeheVR, hoeheVL);
 
   tftSprite.drawCircle(118, 60, 17, TEXTCOL);
   tftSprite.drawRect(100, 60, 37, 55, TEXTCOL);
@@ -626,7 +680,7 @@ String EncodeFormHTMLFromConfigValues(String checked1, String checked2, String c
   HTMLPage += "Configurate your VanLevel / Konfiguiere dein VanLevel</i></td>";
   HTMLPage += "</tr> <tr> <td style='text-align: right; vertical-align: top; width: 150px; border-bottom: 1px dotted #999;' colspan='3'>&nbsp;</td></tr> <tr> <td style='text-align: right; vertical-align: top; width: 150px;' colspan='3'>&nbsp;</td> </tr> <tr> <td style='text-align: center; vertical-align: middle; width: 150px;' rowspan='3'><b>";
   HTMLPage += "System</b></td>";
-  HTMLPage += "<td style='text-align: right; vertical-align: middle; width: 150px;'>Alarm&nbsp;</td> <td style='text-align: left; vertical-align: top; width: 150px;'><input type='radio' name='Sound' value='1'  " + checked1 + " > on / an<br><input type = 'radio' name = 'Sound' value = '0' " + checked1 + "> off / aus&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: middle; width: 150px;'>Display&nbsp;</td> <td style = 'text-align: left; vertical-align: top; width: 150px;'> <input type = 'radio' name = 'Display' value = '3' " + checked3 + "> Normal<br><input type = 'radio' name = 'Display' value = '1' " + checked4 + "> 180&deg; </td > </tr > <tr> ";
+  HTMLPage += "<td style='text-align: right; vertical-align: middle; width: 150px;'>Alarm&nbsp;</td> <td style='text-align: left; vertical-align: top; width: 150px;'><input type='radio' name='Sound' value='1'  " + checked1 + " > on / an<br><input type = 'radio' name = 'Sound' value = '0' " + checked2 + "> off / aus&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: middle; width: 150px;'>Display&nbsp;</td> <td style = 'text-align: left; vertical-align: top; width: 150px;'> <input type = 'radio' name = 'Display' value = '3' " + checked3 + "> Normal<br><input type = 'radio' name = 'Display' value = '1' " + checked4 + "> 180&deg; </td > </tr > <tr> ";
   HTMLPage += "<td style = 'text-align: right; vertical-align: middle; width: 150px;'>Standby&nbsp;</td > <td style = 'text-align: left; vertical-align: top; width: 150px;'><input type = 'radio' name = 'Standby' value = '15' " + checked5 + "> 15 min<br><input type = 'radio' name = 'Standby' value = '10' " + checked6 + "> 10 min<br><input type = 'radio' name = 'Standby' value = '5' " + checked7 + "> &nbsp; 5 min&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px; border-bottom: 1px dotted #999;' colspan = '3'>&nbsp;</td> </tr> <tr> <td style = 'text-align: right; vertical-align: top; width: 150px;' colspan = '3'>&nbsp;</td > </tr > <tr> <td style = 'text-align: center; vertical-align: middle; width: 150px;' rowspan = '2'><b>Vehicle<br>Fahrzeug </b > </td > <td style = 'text-align: right; vertical-align: top; width: 150px;'>Wheelbase&nbsp;<br>Radstand&nbsp;</td> <td style = 'text-align: left; vertical-align: middle; width: 150px;'> <input style = 'border:1px solid; border-radius: 5px; text-align: center;' id = 'Radstand' max = '999' min = '100' name = 'Radstand' step = '10' type = 'number' value = '";
   HTMLPage += Radstand;
   HTMLPage += "'/>  &nbsp;cm </td> ";
