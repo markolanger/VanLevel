@@ -2,10 +2,12 @@
 *******************************************************************************
   Copyright (c) 2021 by Marko Langer
   Programm Name: VanLevel
-  Version: 1.03
+  Version: 1.04
   Date：29.03.2022
   Author: Marko Langer
-
+   Update 25.04.2022
+  - Changed to AHRS-data for better deg. stability.
+  
    Update 10.04.2022
   - LowPassFilter for IMU input
   - BugFix on Webinterface
@@ -17,6 +19,7 @@
   - Charging Status with USB+in
 *******************************************************************************
 */
+
 #include <WiFi.h>
 #include <EEPROM.h>
 #include "M5StickCPlus.h"
@@ -61,9 +64,9 @@ short i = 0;
 short I = 0;
 short Sound = 1;
 short Calibrate = 1; // 1 = no Calibration / 2 = Calibrate
-float OffsetPitch = 0.53;
-float OffsetRoll = 0.03;
-float OffsetFactor = 5.9;
+float OffsetPitch = 0;
+float OffsetRoll = 0;
+float OffsetFactor = 1;
 float pitch = 0.0F;
 float roll  = 0.0F;
 float pitch1 = 0.0F;
@@ -134,10 +137,10 @@ void setup() {
       EEPROM.write(8, 19); // limit_4
       EEPROM.write(9, 2);  // limit_5
       EEPROM.write(10, 0); // Calibrate
-      EEPROM.write(11, 0); 
-      EEPROM.write(12, 0); 
-      EEPROM.write(13, 0); 
-      EEPROM.write(14, 0); 
+      EEPROM.write(11, 0);
+      EEPROM.write(12, 0);
+      EEPROM.write(13, 0);
+      EEPROM.write(14, 0);
       EEPROM.write(15, 0);
       EEPROM.write(16, 0);
       EEPROM.write(17, 0);
@@ -261,14 +264,14 @@ void loop() {
 
 // Berechnung Ball ////////////////////
 void ball() {
-  M5.Imu.getAccelData(&pitch, &roll, &yaw);
+  M5.Imu.getAhrsData(&pitch, &roll, &yaw);
   lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
   lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
-  pitch = lowPassGyroX * -10;
-  roll = lowPassGyroY * 10;
-
+  pitch = lowPassGyroX;
+  roll = lowPassGyroY;
   hoeheX = round(Radstand * tan((pitch + OffsetPitch) * pi / 180));
   hoeheY = round(Spurweite * tan((roll + OffsetRoll) * pi / 180));
+
   if (Display == 1) {
     hoeheX = hoeheX * -1;
     hoeheY = hoeheY * -1;
@@ -338,11 +341,7 @@ void CAL() {        //4 Runs / 300 times each. TO get a stable base.
   tftSprite.printf(" Calibrate\n Kalibriere ");
   tftSprite.pushSprite(0, 0);
   do {
-    M5.Imu.getAccelData(&pitch, &roll, &yaw);
-    lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
-    lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
-    pitch = lowPassGyroX * -10;
-    roll = lowPassGyroY * -10;
+    M5.Imu.getAhrsData(&pitch, &roll, &yaw);
     I++;
   } while (I < 300);
   tftSprite.setCursor(0, 10);
@@ -350,32 +349,22 @@ void CAL() {        //4 Runs / 300 times each. TO get a stable base.
   tftSprite.pushSprite(0, 0);
   I = 0;
   do {
-    M5.Imu.getAccelData(&pitch, &roll, &yaw);
-    lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
-    lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
-    pitch = lowPassGyroX * -10;
-    roll = lowPassGyroY * -10;
+    M5.Imu.getAhrsData(&pitch, &roll, &yaw);
     I++;
-  } while (I < 300);
+  } while (I < 600);
+  delay(500);
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere\n\n         2");
   tftSprite.pushSprite(0, 0);
   delay(1000);
-  M5.Imu.getAccelData(&pitch, &roll, &yaw);
-  lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
-  lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
-  pitch = lowPassGyroX * -10;
-  roll = lowPassGyroY * -10;
+  M5.Imu.getAhrsData(&pitch, &roll, &yaw);
   // last run ////////////////////
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere\n\n         1");
   tftSprite.pushSprite(0, 0);
   delay(1000);
-  M5.Imu.getAccelData(&pitch, &roll, &yaw);
-  lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
-  lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
-  pitch = lowPassGyroX * -10;
-  roll = lowPassGyroY * -10;
+  M5.Imu.getAhrsData(&pitch, &roll, &yaw);
+
   tftSprite.setCursor(0, 10);
   tftSprite.printf(" Calibrate\n Kalibriere\n\n         0");
   tftSprite.pushSprite(0, 0);
@@ -470,17 +459,14 @@ void Config() {
 void calculation() {
   tftSprite.setCursor(10, 10);
   tftSprite.print("Level & Ramp Step");
-  M5.Imu.getAccelData(&pitch, &roll, &yaw);
+  M5.Imu.getAhrsData(&pitch, &roll, &yaw);
+
   lowPassGyroX = (lowPassFilter * pitch * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroX);
   lowPassGyroY = (lowPassFilter * roll * OffsetFactor) + ((1 - lowPassFilter) * lowPassGyroY);
-  pitch = lowPassGyroX * -10;
-  roll = lowPassGyroY * -10;
-
-
+  pitch = lowPassGyroX;
+  roll = lowPassGyroY ;
   hoeheX = round(Radstand * tan((pitch + OffsetPitch) * pi / 180));
-  hoeheY = round(Spurweite * tan((roll + OffsetRoll) * pi / 180));
-
-
+  hoeheY = round(Spurweite * tan((roll + OffsetRoll) * pi / 180))*-1;
 
   if (Display == 1) {
     hoeheX = hoeheX * -1;
