@@ -5,6 +5,7 @@
   Version: 1.04
   Date：29.03.2022
   Author: Marko Langer
+  
    Update 25.04.2022
   - Changed to AHRS-data for better deg. stability.
   
