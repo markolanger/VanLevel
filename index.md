@@ -6,5 +6,4 @@ You can use the [editor on GitHub](https://github.com/markolanger/VanLevel/edit/
 Wir teilen uns ein spannendes und abwechslungsreiches Hobby - das ist gro&szlig;artig. Ich freue mich, dich durch deine Entscheidung zum Kauf eines VanLevel beim Finden eines guten Abstellplatzes und der Einrichtung auf dem Campingplatz unterst&uuml;tzen zu k&ouml;nnen. Ich w&uuml;nsche dir spannende Reisen und tolle Erlebnisse.
 
 [Hier findest du die Bedienungsanleitung auf Deutsch.](https://github.com/markolanger/VanLevel/raw/main/Bedienungsanleitung%20VanLevel%20DE.pdf)
-
 [M&ouml;chtest du ein Problem melden - mach es hier.](https://github.com/markolanger/VanLevel/issues/new/choose)
