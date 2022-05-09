@@ -3,5 +3,5 @@ plugins:
 - jekyll-remote-theme
 title: VanLevel
 description: [A short description of your site's purpose]
-show_downloads: [false]
+show_downloads: false
 google_analytics: [Your Google Analytics tracking ID]
