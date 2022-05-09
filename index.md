@@ -1,4 +1,4 @@
-## Welcomt to VanLevel
+<span style="border-bottom:3px solid #00bb00;">## Welcome to VanLevel</span>
 
 You can use the [editor on GitHub](https://github.com/markolanger/VanLevel/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
 
