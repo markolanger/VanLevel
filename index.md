@@ -1,6 +1,7 @@
-## Welcome to VanLevel
+## Welcome to 
+<span style="border-bottom:3px solid #00bb00;font-weight:bold;color:#696969;">VanLevel</span>
 
-You can use the [editor on GitHub](https://github.com/markolanger/VanLevel/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+// You can use the [editor on GitHub](https://github.com/markolanger/VanLevel/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
 
 <span style="border-bottom:3px solid #00bb00;font-weight:bold;color:#696969;">VanLevel</span>
 
