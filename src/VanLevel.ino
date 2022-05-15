@@ -60,7 +60,7 @@ short limitHL = 0;
 short limitHR = 0;
 short Timer = 10;
 short Display = 3;
-short Standby = 5;
+short Standby = 15;
 short i = 0;
 short I = 0;
 short Sound = 1;
@@ -129,7 +129,7 @@ void setup() {
     if (Sound == 255 || Display == 255 || Standby == 255 || Radstand == 255 || Spurweite == 255 || limit_1 == 255 || limit_2 == 255 || limit_3 == 255 || limit_4 == 255 || limit_5 == 255 || Calibrate == 255) {
       EEPROM.write(0, 1);  // Sound
       EEPROM.write(1, 3);  // Display
-      EEPROM.write(2, 5);  // Standby
+      EEPROM.write(2, 15); // Standby
       EEPROM.write(3, 38); // Radstand
       EEPROM.write(4, 18); // Spurweite
       EEPROM.write(5, 4);  // limit_1
